@@ -27,7 +27,10 @@ C++17 includes the following new library features:
 - [std::string_view](#stdstring_view)
 - [std::invoke](#stdinvoke)
 - [std::apply](#stdapply)
+- [std::filesystem](#stdfilesystem)
+- [std::byte](#stdbyte)
 - [splicing for maps and sets](#splicing-for-maps-and-sets)
+- [parallel algorithms](#parallel-algorithms)
 
 C++14 includes the following new language features:
 - [binary literals](#binary-literals)
@@ -47,6 +50,7 @@ C++11 includes the following new language features:
 - [move semantics](#move-semantics)
 - [variadic templates](#variadic-templates)
 - [rvalue references](#rvalue-references)
+- [forwarding references](#forwarding-references)
 - [initializer lists](#initializer-lists)
 - [static assertions](#static-assertions)
 - [auto](#auto)
@@ -74,6 +78,7 @@ C++11 includes the following new language features:
 C++11 includes the following new library features:
 - [std::move](#stdmove)
 - [std::forward](#stdforward)
+- [std::thread](#stdthread)
 - [std::to_string](#stdto_string)
 - [type traits](#type-traits)
 - [smart pointers](#smart-pointers)
@@ -84,6 +89,7 @@ C++11 includes the following new library features:
 - [unordered containers](#unordered-containers)
 - [std::make_shared](#stdmake_shared)
 - [memory model](#memory-model)
+- [std::async](#stdasync)
 
 ## C++17 Language Features
 
@@ -97,14 +103,14 @@ struct MyContainer {
   MyContainer(T val) : val(val) {}
   // ...
 };
-MyContainer c1{ 1 }; // OK MyContainer<int>
+MyContainer c1 {1}; // OK MyContainer<int>
 MyContainer c2; // OK MyContainer<float>
 ```
 
 ### Declaring non-type template parameters with auto
 Following the deduction rules of `auto`, while respecting the non-type template parameter list of allowable types[\*], template arguments can be deduced from the types of its arguments:
 ```c++
-template <auto ... seq>
+template <auto... seq>
 struct my_integer_sequence {
   // Implementation here ...
 };
@@ -119,7 +125,7 @@ auto seq2 = my_integer_sequence<0, 1, 2>();
 ### Folding expressions
 A fold expression performs a fold of a template parameter pack over a binary operator.
 * An expression of the form `(... op e)` or `(e op ...)`, where `op` is a fold-operator and `e` is an unexpanded parameter pack, are called _unary folds_.
-* An expression of the form `(e1 op ... op e2)`, where `op` are fold-operators, is called a _binary fold_. Either `e1` or `e2` are unexpanded parameter packs, but not both.
+* An expression of the form `(e1 op ... op e2)`, where `op` are fold-operators, is called a _binary fold_. Either `e1` or `e2` is an unexpanded parameter pack, but not both.
 ```c++
 template<typename... Args>
 bool logicalAnd(Args... args) {
@@ -140,22 +146,22 @@ sum(1.0, 2.0f, 3); // == 6.0
 ```
 
 ### New rules for auto deduction from braced-init-list
-Changes to `auto` deduction when used with the uniform initialization syntax. Previously, `auto x{ 3 };` deduces a `std::initializer_list<int>`, which now deduces to `int`.
+Changes to `auto` deduction when used with the uniform initialization syntax. Previously, `auto x {3};` deduces a `std::initializer_list<int>`, which now deduces to `int`.
 ```c++
-auto x1{ 1, 2, 3 }; // error: not a single element
-auto x2 = { 1, 2, 3 }; // decltype(x2) is std::initializer_list<int>
-auto x3{ 3 }; // decltype(x3) is int
-auto x4{ 3.0 }; // decltype(x4) is double
+auto x1 {1, 2, 3}; // error: not a single element
+auto x2 = {1, 2, 3}; // decltype(x2) is std::initializer_list<int>
+auto x3 {3}; // decltype(x3) is int
+auto x4 {3.0}; // decltype(x4) is double
 ```
 
 ### constexpr lambda
 Compile-time lambdas using `constexpr`.
 ```c++
-auto identity = [] (int n) constexpr { return n; };
+auto identity = [](int n) constexpr { return n; };
 static_assert(identity(123) == 123);
 ```
 ```c++
-constexpr auto add = [] (int x, int y) {
+constexpr auto add = [](int x, int y) {
   auto L = [=] { return x; };
   auto R = [=] { return y; };
   return [=] { return L() + R(); };
@@ -175,7 +181,7 @@ static_assert(addOne(1) == 2);
 Capturing `this` in a lambda's environment was previously reference-only. An example of where this is problematic is asynchronous code using callbacks that require an object to be available, potentially past its lifetime. `*this` (C++17) will now make a copy of the current object, while `this` (C++11) continues to capture by reference.
 ```c++
 struct MyObj {
-  int value{ 123 };
+  int value {123};
   auto getValueCopy() {
     return [*this] { return value; };
   }
@@ -286,8 +292,8 @@ char x = u8'x';
 Enums can now be initialized using braced syntax.
 ```c++
 enum byte : unsigned char {};
-byte b{0}; // OK
-byte c{-1}; // ERROR
+byte b {0}; // OK
+byte c {-1}; // ERROR
 byte d = byte{1}; // OK
 byte e = byte{256}; // ERROR
 ```
@@ -297,7 +303,7 @@ byte e = byte{256}; // ERROR
 ### std::variant
 The class template `std::variant` represents a type-safe `union`. An instance of `std::variant` at any given time holds a value of one of its alternative types (it's also possible for it to be valueless).
 ```c++
-std::variant<int, double> v{ 12 };
+std::variant<int, double> v {12};
 std::get<int>(v); // == 12
 std::get<0>(v); // == 12
 v = 12.0;
@@ -327,7 +333,7 @@ if (auto str = create(true)) {
 ### std::any
 A type-safe container for single values of any type.
 ```c++
-std::any x{ 5 };
+std::any x {5};
 x.has_value() // == true
 std::any_cast<int>(x) // == 5
 std::any_cast<int&>(x) = 10;
@@ -338,16 +344,16 @@ std::any_cast<int>(x) // == 10
 A non-owning reference to a string. Useful for providing an abstraction on top of strings (e.g. for parsing).
 ```c++
 // Regular strings.
-std::string_view cppstr{ "foo" };
+std::string_view cppstr {"foo"};
 // Wide strings.
-std::wstring_view wcstr_v{ L"baz" };
+std::wstring_view wcstr_v {L"baz"};
 // Character arrays.
 char array[3] = {'b', 'a', 'r'};
-std::string_view array_v(array, sizeof array);
+std::string_view array_v(array, std::size(array));
 ```
 ```c++
-std::string str{ "   trim me" };
-std::string_view v{ str };
+std::string str {"   trim me"};
+std::string_view v {str};
 v.remove_prefix(std::min(v.find_first_not_of(" "), v.size()));
 str; //  == "   trim me"
 v; // == "trim me"
@@ -367,29 +373,56 @@ public:
         return std::invoke(c, std::forward<Args>(args)...);
     }
 };
-auto add = [] (int x, int y) {
+auto add = [](int x, int y) {
   return x + y;
 };
-Proxy<decltype(add)> p{ add };
+Proxy<decltype(add)> p {add};
 p(1, 2); // == 3
 ```
 
 ### std::apply
 Invoke a `Callable` object with a tuple of arguments.
 ```c++
-auto add = [] (int x, int y) {
+auto add = [](int x, int y) {
   return x + y;
 };
-std::apply(add, std::make_tuple( 1, 2 )); // == 3
+std::apply(add, std::make_tuple(1, 2)); // == 3
 ```
+
+### std::filesystem
+The new `std::filesystem` library provides a standard way to manipulate files, directories, and paths in a filesystem.
+
+Here, a big file is copied to a temporary path if there is available space:
+```c++
+const auto bigFilePath {"bigFileToCopy"};
+if (std::filesystem::exists(bigFilePath)) {   
+  const auto bigFileSize {std::filesystem::file_size(bigFilePath)};
+  std::filesystem::path tmpPath {"/tmp"};
+  if (std::filesystem::space(tmpPath).available > bigFileSize) {
+    std::filesystem::create_directory(tmpPath.append("example"));
+    std::filesystem::copy_file(bigFilePath, tmpPath.append("newFile"));
+  }
+}
+```
+
+### std::byte
+The new `std::byte` type provides a standard way of representing data as a byte. Benefits of using `std::byte` over `char` or `unsigned char` is that it is not a character type, and is also not an arithmetic type; while the only operator overloads available are bitwise operations.
+```c++
+std::byte a {0};
+std::byte b {0xFF};
+int i = std::to_integer<int>(b); // 0xFF
+std::byte c = a & b;
+int j = std::to_integer<int>(c); // 0
+```
+Note that `std::byte` is simply an enum, and braced initialization of enums become possible thanks to [direct-list-initialization of enums](#direct-list-initialization-of-enums).
 
 ### Splicing for maps and sets
 Moving nodes and merging containers without the overhead of expensive copies, moves, or heap allocations/deallocations.
 
 Moving elements from one map to another:
 ```c++
-std::map<int, string> src{ { 1, "one" }, { 2, "two" }, { 3, "buckle my shoe" } };
-std::map<int, string> dst{ { 3, "three" } };
+std::map<int, string> src {{1, "one"}, {2, "two"}, {3, "buckle my shoe"}};
+std::map<int, string> dst {{3, "three"}};
 dst.insert(src.extract(src.find(1))); // Cheap remove and insert of { 1, "one" } from `src` to `dst`.
 dst.insert(src.extract(2)); // Cheap remove and insert of { 2, "two" } from `src` to `dst`.
 // dst == { { 1, "one" }, { 2, "two" }, { 3, "three" } };
@@ -397,8 +430,8 @@ dst.insert(src.extract(2)); // Cheap remove and insert of { 2, "two" } from `src
 
 Inserting an entire set:
 ```c++
-std::set<int> src{1, 3, 5};
-std::set<int> dst{2, 4, 5};
+std::set<int> src {1, 3, 5};
+std::set<int> dst {2, 4, 5};
 dst.merge(src);
 // src == { 5 }
 // dst == { 1, 2, 3, 4, 5 }
@@ -416,11 +449,22 @@ s2.insert(elementFactory());
 
 Changing the key of a map element:
 ```c++
-std::map<int, string> m{ { 1, "one" }, { 2, "two" }, { 3, "three" } };
+std::map<int, string> m {{1, "one"}, {2, "two"}, {3, "three"}};
 auto e = m.extract(2);
 e.key() = 4;
 m.insert(std::move(e));
 // m == { { 1, "one" }, { 3, "three" }, { 4, "two" } }
+```
+
+### Parallel algorithms
+Many of the STL algorithms, such as the `copy`, `find` and `sort` methods, started to support the *parallel execution policies*: `seq`, `par` and `par_unseq` which translate to "sequentially", "parallel" and "parallel unsequenced".
+
+```c++
+std::vector<int> longVector;
+// Find element using parallel execution policy
+auto result1 = std::find(std::execution::par, std::begin(longVector), std::end(longVector), 2);
+// Sort elements using sequential execution policy
+auto result2 = std::sort(std::execution::seq, std::begin(longVector), std::end(longVector));
 ```
 
 ## C++14 Language Features
@@ -495,7 +539,7 @@ int& z = g(y); // reference to `y`
 ```
 
 ### decltype(auto)
-The `decltype(auto)` type-specifier also deduces a type like `auto` does. However, it deduces return types while keeping their references or "const-ness", while `auto` will not.
+The `decltype(auto)` type-specifier also deduces a type like `auto` does. However, it deduces return types while keeping their references and cv-qualifiers, while `auto` will not.
 ```c++
 const int x = 0;
 auto x1 = x; // int
@@ -526,6 +570,8 @@ static_assert(std::is_same<const int&, decltype(f(x))>::value == 0);
 static_assert(std::is_same<int, decltype(f(x))>::value == 1);
 static_assert(std::is_same<const int&, decltype(g(x))>::value == 1);
 ```
+
+See also: [`decltype`](#decltype).
 
 ### Relaxing constraints on constexpr functions
 In C++11, `constexpr` function bodies could only contain a very limited set of syntaxes, including (but not limited to): `typedef`s, `using`s, and a single `return` statement. In C++14, the set of allowable syntaxes expands greatly to include the most common syntax such as `if` statements, multiple `return`s, loops, etc.
@@ -585,7 +631,7 @@ decltype(auto) a2t(const std::array<T, N>& a) {
 * Prevents code repetition when specifying the underlying type the pointer shall hold.
 * Most importantly, it provides exception-safety. Suppose we were calling a function `foo` like so:
 ```c++
-foo(std::unique_ptr<T>{ new T{} }, function_that_throws(), std::unique_ptr<T>{ new T{} });
+foo(std::unique_ptr<T>{new T{}}, function_that_throws(), std::unique_ptr<T>{new T{}});
 ```
 The compiler is free to call `new T{}`, then `function_that_throws()`, and so on... Since we have allocated data on the heap in the first construction of a `T`, we have introduced a leak here. With `std::make_unique`, we are given exception-safety:
 ```c++
@@ -603,23 +649,56 @@ To move an object means to transfer ownership of some resource it manages to ano
 
 Moves also make it possible to transfer objects such as `std::unique_ptr`s, [smart pointers](#smart-pointers) that are designed to hold a pointer to a unique object, from one scope to another.
 
-See the sections on: [rvalue references](#rvalue-references), [defining move special member functions](#special-member-functions-for-move-semantics), [`std::move`](#stdmove), [`std::forward`](#stdforward).
+See the sections on: [rvalue references](#rvalue-references), [defining move special member functions](#special-member-functions-for-move-semantics), [`std::move`](#stdmove), [`std::forward`](#stdforward), [`forwarding references`](#forwarding-references).
 
 ### Rvalue references
-C++11 introduces a new reference termed the _rvalue reference_. An rvalue reference to `A` is created with the syntax `A&&`. This enables two major features: move semantics; and _perfect forwarding_, the ability to pass arguments while maintaining information about them as lvalues/rvalues in a generic way.
+C++11 introduces a new reference termed the _rvalue reference_. An rvalue reference to `A`, which is a non-template type parameter (such as `int`, or a user-defined type), is created with the syntax `A&&`. Rvalue references only bind to rvalues.
 
-`auto` type deduction with lvalues and rvalues:
+Type deduction with lvalues and rvalues:
 ```c++
 int x = 0; // `x` is an lvalue of type `int`
 int& xl = x; // `xl` is an lvalue of type `int&`
 int&& xr = x; // compiler error -- `x` is an lvalue
-int&& xr2 = 0; // `xr2` is an lvalue of type `int&&`
-auto& al = x; // `al` is an lvalue of type `int&`
-auto&& al2 = x; // `al2` is an lvalue of type `int&`
-auto&& ar = 0; // `ar` is an lvalue of type `int&&`
+int&& xr2 = 0; // `xr2` is an lvalue of type `int&&` -- binds to the rvalue temporary, `0`
 ```
 
-See also: [`std::move`](#stdmove), [`std::forward`](#stdforward).
+See also: [`std::move`](#stdmove), [`std::forward`](#stdforward), [`forwarding references`](#forwarding-references).
+
+### Forwarding references
+Also known (unofficially) as _universal references_. A forwarding reference is created with the syntax `T&&` where `T` is a template type parameter, or using `auto&&`. This enables two major features: move semantics; and _perfect forwarding_, the ability to pass arguments that are either lvalues or rvalues.
+
+Forwarding references allow a reference to bind to either an lvalue or rvalue depending on the type. Forwarding references follow the rules of _reference collapsing_:
+* `T& &` becomes `T&`
+* `T& &&` becomes `T&`
+* `T&& &` becomes `T&`
+* `T&& &&` becomes `T&&`
+
+`auto` type deduction with lvalues and rvalues:
+```c++
+int x = 0; // `x` is an lvalue of type `int`
+auto&& al = x; // `al` is an lvalue of type `int&` -- binds to the lvalue, `x`
+auto&& ar = 0; // `ar` is an lvalue of type `int&&` -- binds to the rvalue temporary, `0`
+```
+
+Template type parameter deduction with lvalues and rvalues:
+```c++
+// Since C++14 or later:
+void f(auto&& t) {
+  // ...
+}
+
+// Since C++11 or later:
+template <typename T>
+void f(T&& t) {
+  // ...
+}
+
+int x = 0;
+f(0); // deduces as f(int&&)
+f(x); // deduces as f(int&)
+```
+
+See also: [`std::move`](#stdmove), [`std::forward`](#stdforward), [`rvalue references`](#rvalue-references).
 
 ### Variadic templates
 The `...` syntax creates a _parameter pack_ or expands one. A template _parameter pack_ is a template parameter that accepts zero or more template arguments (non-types, types, or templates). A template with at least one parameter pack is called a _variadic template_.
@@ -644,9 +723,9 @@ int sum(const std::initializer_list<int>& list) {
   return total;
 }
 
-auto list = { 1, 2, 3 };
+auto list = {1, 2, 3};
 sum(list); // == 6
-sum({ 1, 2, 3 }); // == 6
+sum({1, 2, 3}); // == 6
 sum({}); // == 0
 ```
 
@@ -705,7 +784,7 @@ A `lambda` is an unnamed function object capable of capturing variables in scope
 ```c++
 int x = 1;
 
-auto getX = [=]{ return x; };
+auto getX = [=] { return x; };
 getX(); // == 1
 
 auto addX = [=](int y) { return x + y; };
@@ -722,11 +801,11 @@ auto f1 = [&x] { x = 2; }; // OK: x is a reference and modifies the original
 
 auto f2 = [x] { x = 2; }; // ERROR: the lambda can only perform const-operations on the captured value
 // vs.
-auto f3 = [x] () mutable { x = 2; }; // OK: the lambda can perform any operations on the captured value
+auto f3 = [x]() mutable { x = 2; }; // OK: the lambda can perform any operations on the captured value
 ```
 
 ### decltype
-`decltype` is an operator which returns the _declared type_ of an expression passed to it. Examples of `decltype`:
+`decltype` is an operator which returns the _declared type_ of an expression passed to it. cv-qualifiers and references are maintained if they are part of the expression. Examples of `decltype`:
 ```c++
 int a = 1; // `a` is declared as type `int`
 decltype(a) b = a; // `decltype(a)` is `int`
@@ -745,15 +824,17 @@ auto add(X x, Y y) -> decltype(x + y) {
 add(1, 2.0); // `decltype(x + y)` => `decltype(3.0)` => `double`
 ```
 
+See also: [`decltype(auto)`](#decltypeauto).
+
 ### Template aliases
 Semantically similar to using a `typedef` however, template aliases with `using` are easier to read and are compatible with templates.
 ```c++
 template <typename T>
 using Vec = std::vector<T>;
-Vec<int> v{}; // std::vector<int>
+Vec<int> v; // std::vector<int>
 
 using String = std::string;
-String s{"foo"};
+String s {"foo"};
 ```
 
 ### nullptr
@@ -832,7 +913,7 @@ struct Foo {
   Foo() : Foo(0) {}
 };
 
-Foo foo{};
+Foo foo;
 foo.foo; // == 0
 ```
 
@@ -906,16 +987,16 @@ A more elegant, efficient way to provide a default implementation of a function,
 struct A {
   A() = default;
   A(int x) : x(x) {}
-  int x{ 1 };
+  int x {1};
 };
-A a{}; // a.x == 1
-A a2{ 123 }; // a.x == 123
+A a; // a.x == 1
+A a2 {123}; // a.x == 123
 ```
 
 With inheritance:
 ```c++
 struct B {
-  B() : x(1);
+  B() : x(1) {}
   int x;
 };
 
@@ -924,7 +1005,7 @@ struct C : B {
   C() = default;
 };
 
-C c{}; // c.x == 1
+C c; // c.x == 1
 ```
 
 ### Deleted functions
@@ -939,7 +1020,7 @@ public:
   A& operator=(const A&) = delete;
 };
 
-A x{ 123 };
+A x {123};
 A y = x; // error -- call to deleted copy constructor
 y = x; // error -- operator= deleted
 ```
@@ -947,14 +1028,14 @@ y = x; // error -- operator= deleted
 ### Range-based for loops
 Syntactic sugar for iterating over a container's elements.
 ```c++
-std::array<int, 5> a{ 1, 2, 3, 4, 5 };
+std::array<int, 5> a {1, 2, 3, 4, 5};
 for (int& x : a) x *= 2;
 // a == { 2, 4, 6, 8, 10 }
 ```
 
 Note the difference when using `int` as opposed to `int&`:
 ```c++
-std::array<int, 5> a{ 1, 2, 3, 4, 5 };
+std::array<int, 5> a {1, 2, 3, 4, 5};
 for (int x : a) x *= 2;
 // a == { 1, 2, 3, 4, 5 }
 ```
@@ -993,10 +1074,10 @@ struct A {
   A(int, int, int) {}
 };
 
-A a{0, 0}; // calls A::A(int, int)
+A a {0, 0}; // calls A::A(int, int)
 A b(0, 0); // calls A::A(int, int)
 A c = {0, 0}; // calls A::A(int, int)
-A d{0, 0, 0}; // calls A::A(int, int, int)
+A d {0, 0, 0}; // calls A::A(int, int, int)
 ```
 
 Note that the braced list syntax does not allow narrowing:
@@ -1006,7 +1087,7 @@ struct A {
 };
 
 A a(1.1); // OK
-A b{1.1}; // Error narrowing conversion from double to int
+A b {1.1}; // Error narrowing conversion from double to int
 ```
 
 Note that if a constructor accepts a `std::initializer_list`, it will be called instead:
@@ -1018,10 +1099,10 @@ struct A {
   A(std::initializer_list<int>) {}
 };
 
-A a{0, 0}; // calls A::A(std::initializer_list<int>)
+A a {0, 0}; // calls A::A(std::initializer_list<int>)
 A b(0, 0); // calls A::A(int, int)
 A c = {0, 0}; // calls A::A(std::initializer_list<int>)
-A d{0, 0, 0}; // calls A::A(std::initializer_list<int>)
+A d {0, 0, 0}; // calls A::A(std::initializer_list<int>)
 ```
 
 ### Explicit conversion functions
@@ -1035,11 +1116,11 @@ struct B {
   explicit operator bool() const { return true; }
 };
 
-A a{};
+A a;
 if (a); // OK calls A::operator bool()
 bool ba = a; // OK copy-initialization selects A::operator bool()
 
-B b{};
+B b;
 if (b); // OK calls B::operator bool()
 bool bb = b; // error copy-initialization does not consider B::operator bool()
 ```
@@ -1075,10 +1156,9 @@ class Human {
 // Default initialization on C++11
 class Human {
   private:
-    unsigned age{0};
+    unsigned age {0};
 };
 ```
-
 
 ### Right angle Brackets
 C++11 is now able to infer when a series of right angle brackets is used as an operator or as a closing statement of typedef, without having to add whitespace.
@@ -1103,18 +1183,14 @@ typename remove_reference<T>::type&& move(T&& arg) {
 
 Transferring `std::unique_ptr`s:
 ```c++
-std::unique_ptr<int> p1{ new int };
+std::unique_ptr<int> p1 {new int{0}};
 std::unique_ptr<int> p2 = p1; // error -- cannot copy unique pointers
-std::unique_ptr<int> p3 = std::move(p1); // move `p1` into `p2`
+std::unique_ptr<int> p3 = std::move(p1); // move `p1` into `p3`
                                          // now unsafe to dereference object held by `p1`
 ```
 
 ### std::forward
-Returns the arguments passed to it as-is, either as an lvalue or rvalue references, and includes cv-qualification. Useful for generic code that need a reference (either lvalue or rvalue) when appropriate, e.g factories. Forwarding gets its power from _template argument deduction_:
-* `T& &` becomes `T&`
-* `T& &&` becomes `T&`
-* `T&& &` becomes `T&`
-* `T&& &&` becomes `T&&`
+Returns the arguments passed to it as-is, either as an lvalue or rvalue references, and includes cv-qualification. Useful for generic code that need a reference (either lvalue or rvalue) when appropriate, e.g factories. Used in conjunction with [`forwarding references`](#forwarding-references).
 
 A definition of `std::forward`:
 ```c++
@@ -1134,13 +1210,31 @@ struct A {
 
 template <typename T>
 A wrapper(T&& arg) {
-  return A{ std::forward<T>(arg) };
+  return A{std::forward<T>(arg)};
 }
 
 wrapper(A{}); // moved
-A a{};
+A a;
 wrapper(a); // copied
 wrapper(std::move(a)); // moved
+```
+
+See also: [`forwarding references`](#forwarding-references), [`rvalue references`](#rvalue-references).
+
+### std::thread
+The `std::thread` library provides a standard way to control threads, such as spawning and killing them. In the example below, multiple threads are spawned to do different calculations and then the program waits for all of them to finish.
+
+```c++
+void foo(bool clause) { /* do something... */ }
+
+std::vector<std::thread> threadsVector;
+threadsVector.emplace_back([]() {
+  // Lambda function that will be invoked    
+});
+threadsVector.emplace_back(foo, true);  // thread will run foo(true)
+for (auto& thread : threadsVector) {
+  thread.join(); // Wait for threads to finish
+}
 ```
 
 ### std::to_string
@@ -1153,9 +1247,9 @@ std::to_string(123); // == "123"
 ### Type traits
 Type traits defines a compile-time template-based interface to query or modify the properties of types.
 ```c++
-static_assert(std::is_integral<int>::value == 1);
-static_assert(std::is_same<int, int>::value == 1);
-static_assert(std::is_same<std::conditional<true, int, double>::type, int>::value == 1);
+static_assert(std::is_integral<int>::value);
+static_assert(std::is_same<int, int>::value);
+static_assert(std::is_same<std::conditional<true, int, double>::type, int>::value);
 ```
 
 ### Smart pointers
@@ -1163,17 +1257,21 @@ C++11 introduces new smart(er) pointers: `std::unique_ptr`, `std::shared_ptr`, `
 
 `std::unique_ptr` is a non-copyable, movable smart pointer that properly manages arrays and STL containers. **Note: Prefer using the `std::make_X` helper functions as opposed to using constructors. See the sections for [std::make_unique](#stdmake_unique) and [std::make_shared](#stdmake_shared).**
 ```c++
-std::unique_ptr<Foo> p1 { new Foo{} };  // `p1` owns `Foo`
-if (p1) p1->bar();
+std::unique_ptr<Foo> p1 {new Foo{}};  // `p1` owns `Foo`
+if (p1) {
+  p1->bar();
+}
 
 {
-  std::unique_ptr<Foo> p2 { std::move(p1) };  // Now `p2` owns `Foo`
+  std::unique_ptr<Foo> p2 {std::move(p1)};  // Now `p2` owns `Foo`
   f(*p2);
 
   p1 = std::move(p2);  // Ownership returns to `p1` -- `p2` gets destroyed
 }
 
-if (p1) p1->bar();
+if (p1) {
+  p1->bar();
+}
 // `Foo` instance is destroyed when `p1` goes out of scope
 ```
 
@@ -1191,7 +1289,7 @@ void baz(std::shared_ptr<T> t) {
   // Do something with `t`...
 }
 
-std::shared_ptr<T> p1 { new T{} };
+std::shared_ptr<T> p1 {new T{}};
 // Perhaps these take place in another threads?
 foo(p1);
 bar(p1);
@@ -1201,20 +1299,19 @@ baz(p1);
 ### std::chrono
 The chrono library contains a set of utility functions and types that deal with _durations_, _clocks_, and _time points_. One use case of this library is benchmarking code:
 ```c++
-std::chrono::time_point<std::chrono::system_clock> start, end;
-start = std::chrono::system_clock::now();
+std::chrono::time_point<std::chrono::steady_clock> start, end;
+start = std::chrono::steady_clock::now();
 // Some computations...
-end = std::chrono::system_clock::now();
+end = std::chrono::steady_clock::now();
 
-std::chrono::duration<double> elapsed_seconds = end-start;
-
-elapsed_seconds.count(); // t number of seconds, represented as a `double`
+std::chrono::duration<double> elapsed_seconds = end - start;
+double t = elapsed_seconds.count(); // t number of seconds, represented as a `double`
 ```
 
 ### Tuples
 Tuples are a fixed-size collection of heterogeneous values. Access the elements of a `std::tuple` by unpacking using [`std::tie`](#stdtie), or using `std::get`.
 ```c++
-// `playerProfile` has type `std::tuple<int, std::string, std::string>`.
+// `playerProfile` has type `std::tuple<int, const char*, const char*>`.
 auto playerProfile = std::make_tuple(51, "Frans Nielsen", "NYI");
 std::get<0>(playerProfile); // 51
 std::get<1>(playerProfile); // "Frans Nielsen"
@@ -1254,7 +1351,7 @@ These containers maintain average constant-time complexity for search, insert, a
 * Prevents code repetition when specifying the underlying type the pointer shall hold.
 * It provides exception-safety. Suppose we were calling a function `foo` like so:
 ```c++
-foo(std::shared_ptr<T>{ new T{} }, function_that_throws(), std::shared_ptr<T>{ new T{} });
+foo(std::shared_ptr<T>{new T{}}, function_that_throws(), std::shared_ptr<T>{new T{}});
 ```
 The compiler is free to call `new T{}`, then `function_that_throws()`, and so on... Since we have allocated data on the heap in the first construction of a `T`, we have introduced a leak here. With `std::make_shared`, we are given exception-safety:
 ```c++
@@ -1266,6 +1363,26 @@ See the section on [smart pointers](#smart-pointers) for more information on `st
 
 ### Memory model
 C++11 introduces a memory model for C++, which means library support for threading and atomic operations. Some of these operations include (but aren't limited to) atomic loads/stores, compare-and-swap, atomic flags, promises, futures, locks, and condition variables.
+
+See the sections on: [std::thread](#stdthread)
+
+### std::async
+`std::async` runs the given function either asynchronously or lazily-evaluated, then returns a `std::future` which holds the result of that function call.
+
+The first parameter is the policy which can be:
+1. `std::launch::async | std::launch::deferred` It is up to the implementation whether to perform asynchronous execution or lazy evaluation.
+1. `std::launch::async` Run the callable object on a new thread.
+1. `std::launch::deferred` Perform lazy evaluation on the current thread.
+
+```c++
+int foo() {
+  /* Do something here, then return the result. */
+  return 1000;
+}
+
+auto handle = std::async(std::launch::async, foo);  // create an async task
+auto result = handle.get();  // wait for the result
+```
 
 ## Acknowledgements
 * [cppreference](http://en.cppreference.com/w/cpp) - especially useful for finding examples and documentation of new library features.

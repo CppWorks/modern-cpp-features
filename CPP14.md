@@ -89,7 +89,7 @@ int& z = g(y); // reference to `y`
 ```
 
 ### decltype(auto)
-The `decltype(auto)` type-specifier also deduces a type like `auto` does. However, it deduces return types while keeping their references or "const-ness", while `auto` will not.
+The `decltype(auto)` type-specifier also deduces a type like `auto` does. However, it deduces return types while keeping their references and cv-qualifiers, while `auto` will not.
 ```c++
 const int x = 0;
 auto x1 = x; // int
@@ -120,6 +120,8 @@ static_assert(std::is_same<const int&, decltype(f(x))>::value == 0);
 static_assert(std::is_same<int, decltype(f(x))>::value == 1);
 static_assert(std::is_same<const int&, decltype(g(x))>::value == 1);
 ```
+
+See also: `decltype` (C++11).
 
 ### Relaxing constraints on constexpr functions
 In C++11, `constexpr` function bodies could only contain a very limited set of syntaxes, including (but not limited to): `typedef`s, `using`s, and a single `return` statement. In C++14, the set of allowable syntaxes expands greatly to include the most common syntax such as `if` statements, multiple `return`s, loops, etc.
@@ -179,7 +181,7 @@ decltype(auto) a2t(const std::array<T, N>& a) {
 * Prevents code repetition when specifying the underlying type the pointer shall hold.
 * Most importantly, it provides exception-safety. Suppose we were calling a function `foo` like so:
 ```c++
-foo(std::unique_ptr<T>{ new T{} }, function_that_throws(), std::unique_ptr<T>{ new T{} });
+foo(std::unique_ptr<T>{new T{}}, function_that_throws(), std::unique_ptr<T>{new T{}});
 ```
 The compiler is free to call `new T{}`, then `function_that_throws()`, and so on... Since we have allocated data on the heap in the first construction of a `T`, we have introduced a leak here. With `std::make_unique`, we are given exception-safety:
 ```c++
